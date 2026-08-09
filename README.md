@@ -85,18 +85,6 @@ Japanese and English supported.
      `AVAudioSession` カテゴリを `.ambient` に設定することで、システムのメディアボリュームに連動させる。  
      The session category is set to `.ambient` so volume follows the system media level.
 
-1. SwiftData × App Group によるデータ共有 / SwiftData + App Group Data Sharing
-
-   メインアプリとウィジェット Extension が単一のデータストアを共有する構成を採用している。  
-   The main app and widget extension share a single SwiftData store.
-
-   - **App Group 経由の共有ストア / Shared store via App Group**  
-     `ModelContainer` をApp Group内のURLに向けることで、両ターゲットが同一データを読み書きする。  
-     By pointing `ModelContainer` to a URL within the App Group container, both targets read from and write to the same store.
-   - **ウィジェット設定のUserDefaults共有 / Widget configuration via shared UserDefaults**  
-     ウィジェットテーマはApp GroupのUserDefaultsにJSON保存し、ウィジェットExtensionから直接読み込む。  
-     Widget themes are stored as JSON in App Group UserDefaults and read directly by the widget extension.
-
 ---
 
 ## 技術スタック / Tech Stack
