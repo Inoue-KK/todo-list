@@ -33,3 +33,21 @@ class TodoList {
         self.sortOrder = sortOrder
     }
 }
+
+// MARK: - Schema Versioning
+
+/// リリース済みアプリの現行スキーマをV1として定義する。
+/// 今後 TodoList / Todo のプロパティ追加・型変更・リネームを行う際は、
+/// 新しい VersionedSchema（TaskTuneSchemaV2 など）を追加し、
+/// TaskTuneMigrationPlan.stages に変換ルール（MigrationStage）を追加すること。
+/// これにより端末上のデータを保持したまま安全にスキーマを移行できる
+/// （ストアの削除・再作成は行わない）。
+enum TaskTuneSchemaV1: VersionedSchema {
+    static var versionIdentifier = Schema.Version(1, 0, 0)
+    static var models: [any PersistentModel.Type] { [TodoList.self, Todo.self] }
+}
+
+enum TaskTuneMigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [TaskTuneSchemaV1.self] }
+    static var stages: [MigrationStage] { [] }
+}

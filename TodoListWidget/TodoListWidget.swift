@@ -13,34 +13,29 @@ import AppIntents
 // MARK: - App Group
 
 private let appGroupID = "group.com.yourname.tasktune"
-private let schemaVersion = 3
-private let schemaVersionKey = "swiftDataSchemaVersion"
 
 private func makeModelContainer() throws -> ModelContainer? {
     guard let groupURL = FileManager.default
         .containerURL(forSecurityApplicationGroupIdentifier: appGroupID) else { return nil }
     let storeURL = groupURL.appendingPathComponent("tasktune.store")
 
-    func deleteStore() {
+    // マイグレーションでは復旧できないほどストアが壊れている場合のみ、
+    // 削除せず退避（リネーム）してから空のストアを作り直す
+    func quarantineCorruptedStore() {
+        let timestamp = Int(Date().timeIntervalSince1970)
         for suffix in ["", "-shm", "-wal"] {
             let url = groupURL.appendingPathComponent("tasktune.store\(suffix)")
-            try? FileManager.default.removeItem(at: url)
+            let backupURL = groupURL.appendingPathComponent("tasktune-corrupted-\(timestamp).store\(suffix)")
+            try? FileManager.default.moveItem(at: url, to: backupURL)
         }
-    }
-
-    let defaults = UserDefaults(suiteName: appGroupID)
-    let savedVersion = defaults?.integer(forKey: schemaVersionKey) ?? 0
-    if savedVersion < schemaVersion {
-        deleteStore()
-        defaults?.set(schemaVersion, forKey: schemaVersionKey)
     }
 
     let config = ModelConfiguration(url: storeURL)
     do {
-        return try ModelContainer(for: TodoList.self, configurations: config)
+        return try ModelContainer(for: TodoList.self, migrationPlan: TaskTuneMigrationPlan.self, configurations: config)
     } catch {
-        deleteStore()
-        return try ModelContainer(for: TodoList.self, configurations: config)
+        quarantineCorruptedStore()
+        return try ModelContainer(for: TodoList.self, migrationPlan: TaskTuneMigrationPlan.self, configurations: config)
     }
 }
 

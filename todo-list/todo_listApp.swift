@@ -13,10 +13,6 @@ import WidgetKit
 // e.g. "group.com.yourname.todo-list"
 private let appGroupID = "group.com.yourname.tasktune"
 
-// Bump this when the SwiftData schema changes to force store recreation on old devices
-private let schemaVersion = 3
-private let schemaVersionKey = "swiftDataSchemaVersion"
-
 @MainActor
 private func advanceOverdueRepeatingTodos(in container: ModelContainer) async {
     let context = container.mainContext
@@ -100,32 +96,27 @@ struct todo_listApp: App {
         }
         let storeURL = groupURL.appendingPathComponent("tasktune.store")
 
-        func deleteStore() {
+        // マイグレーションでは復旧できないほどストアが壊れている場合のみ、
+        // 削除せず退避（リネーム）してから空のストアを作り直す
+        func quarantineCorruptedStore() {
+            let timestamp = Int(Date().timeIntervalSince1970)
             for suffix in ["", "-shm", "-wal"] {
                 let url = groupURL.appendingPathComponent("tasktune.store\(suffix)")
-                try? FileManager.default.removeItem(at: url)
+                let backupURL = groupURL.appendingPathComponent("tasktune-corrupted-\(timestamp).store\(suffix)")
+                try? FileManager.default.moveItem(at: url, to: backupURL)
             }
-        }
-
-        // スキーマバージョンが古い場合はストアを削除して再作成
-        let defaults = UserDefaults(suiteName: appGroupID)
-        let savedVersion = defaults?.integer(forKey: schemaVersionKey) ?? 0
-        if savedVersion < schemaVersion {
-            print("Schema version changed (\(savedVersion) → \(schemaVersion)), recreating store.")
-            deleteStore()
-            defaults?.set(schemaVersion, forKey: schemaVersionKey)
         }
 
         let config = ModelConfiguration(url: storeURL)
         do {
-            return try ModelContainer(for: TodoList.self, configurations: config)
+            return try ModelContainer(for: TodoList.self, migrationPlan: TaskTuneMigrationPlan.self, configurations: config)
         } catch {
-            print("ModelContainer migration failed, recreating store: \(error)")
-            deleteStore()
+            print("ModelContainer creation failed, quarantining store and recreating empty: \(error)")
+            quarantineCorruptedStore()
             do {
-                return try ModelContainer(for: TodoList.self, configurations: config)
+                return try ModelContainer(for: TodoList.self, migrationPlan: TaskTuneMigrationPlan.self, configurations: config)
             } catch {
-                fatalError("Failed to create ModelContainer even after reset: \(error)")
+                fatalError("Failed to create ModelContainer even after quarantine: \(error)")
             }
         }
     }()
